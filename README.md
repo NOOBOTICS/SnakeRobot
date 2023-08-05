@@ -1,2 +1,1 @@
-# SnakeRobot
-The snake project 
+
