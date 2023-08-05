@@ -1,0 +1,169 @@
+#include <ESP32Servo.h>
+#include <math.h>
+#include <driver/i2s.h>
+
+const int noServos = 7; 
+
+Servo myservoXY[noServos];
+Servo myservoXZ[noServos];
+
+int servoPinXY[noServos] = {2, 4, 5, 15, 16, 17, 18};
+int servoPinXZ[noServos] = {19, 21, 22, 23, 13, 12, 14};
+
+int PositionXY[noServos] = {-30, 5, 55, 55, 55, 55, 45};
+int PositionXZ[noServos] = {-40, 40, 55, 30, 5, 20, 10};
+
+float yPositionXY, yPositionXZ;
+float t = 0.0, L = 0.1 , T = 0.5 ;
+const float Pi = 3.14159265359;
+
+#define I2S_WS 25
+#define I2S_SD 33
+#define I2S_SCK 32
+#define I2S_PORT I2S_NUM_0
+#define bufferLen 64
+int16_t sBuffer[bufferLen];
+
+void i2s_install() {
+  // Set up I2S configuration
+  const i2s_config_t i2s_config = {
+    .mode = i2s_mode_t(I2S_MODE_MASTER | I2S_MODE_RX),
+    .sample_rate = 44100,
+    .bits_per_sample = i2s_bits_per_sample_t(16),
+    .channel_format = I2S_CHANNEL_FMT_ONLY_LEFT,
+    .communication_format = i2s_comm_format_t(I2S_COMM_FORMAT_STAND_I2S),
+    .intr_alloc_flags = 0,
+    .dma_buf_count = 8,
+    .dma_buf_len = bufferLen,
+    .use_apll = false
+  };
+
+  i2s_driver_install(I2S_PORT, &i2s_config, 0, NULL);
+}
+
+void i2s_setpin() {
+  // Set I2S pin configuration
+  const i2s_pin_config_t pin_config = {
+    .bck_io_num = I2S_SCK,
+    .ws_io_num = I2S_WS,
+    .data_out_num = -1,
+    .data_in_num = I2S_SD
+  };
+
+  i2s_set_pin(I2S_PORT, &pin_config);
+}
+
+void setup() {
+  Serial.begin(115200);
+  Serial.println(" ");
+
+  delay(1000);
+  i2s_install();
+  i2s_setpin();
+  i2s_start(I2S_PORT);
+
+  delay(500);
+
+  // Allocate PWM timers
+  ESP32PWM::allocateTimer(0);
+  ESP32PWM::allocateTimer(1);
+  ESP32PWM::allocateTimer(2);
+  ESP32PWM::allocateTimer(3);
+
+  // Set up servos for XY and XZ planes
+  for (int i = 0; i < noServos; i++) {
+    myservoXY[i].setPeriodHertz(50);
+    myservoXZ[i].setPeriodHertz(50);
+    myservoXY[i].attach(servoPinXY[i], 400, 2600);
+    myservoXZ[i].attach(servoPinXZ[i], 400, 2600);
+    myservoXY[i].write(90);
+    myservoXZ[i].write(90);
+    delay(400);
+  }
+
+  // Initial motion for servos
+  for (int i = 0; i < 100; i++) {
+    for (int x = 0; x < noServos; x++) {
+      float y = cos(radians(2 * Pi * (t/T - (x/ L))));
+      yPositionXY = y * 45;
+      yPositionXZ = y * 20;
+
+      if (x % 2 == 0) {
+        yPositionXY = 90 + yPositionXY;
+        yPositionXZ = 90 + yPositionXZ;
+      } else {
+        yPositionXY = 90 - yPositionXY;
+        yPositionXZ = 90 - yPositionXZ;
+      }
+
+      myservoXY[x].write(yPositionXY);
+      myservoXZ[x].write(yPositionXZ);
+    }
+
+    t += 0.5;
+    delay(25);
+  }
+
+  // Reset servos to initial positions
+  for (int i = 0; i < noServos; i++) {
+    myservoXY[i].write(90);
+    myservoXZ[i].write(90);
+    delay(200);
+  }
+
+  // Alternate motion for servos
+  for (int i = 0; i < noServos; i++) {
+    if (i % 2 == 0) {
+      PositionXY[i] = 90 - PositionXY[i];
+      PositionXZ[i] = 90 - PositionXZ[i];
+      myservoXY[i].write(PositionXY[i]);
+      myservoXZ[i].write(PositionXZ[i]);
+      delay(400);
+    } else {
+      PositionXY[i] = 90 + PositionXY[i];
+      PositionXZ[i] = 90 + PositionXZ[i];
+      myservoXY[i].write(PositionXY[i]);
+      myservoXZ[i].write(PositionXZ[i]);
+      delay(400);
+    }
+  }
+}
+
+void loop() {
+  int rangelimit = 3000;
+  Serial.print(rangelimit * -1);
+  Serial.print(" ");
+  Serial.print(rangelimit);
+  Serial.print(" ");
+
+  size_t bytesIn = 0;
+  esp_err_t result = i2s_read(I2S_PORT, &sBuffer, bufferLen, &bytesIn, portMAX_DELAY);
+
+  if (result == ESP_OK) {
+    int16_t samples_read = bytesIn / 8;
+    if (samples_read > 0) {
+      float mean = 0;
+      for (int16_t i = 0; i < samples_read; ++i) {
+        mean += (sBuffer[i]);
+      }
+
+      mean /= samples_read;
+      mean = (mean / 3000) * 20;
+
+      if (mean >= 1 && mean < 1.5) {
+        Serial.println(mean);
+        myservoXZ[0].write(mean * 12 + PositionXZ[0]);
+        myservoXY[6].write((int)(mean * 15) + PositionXY[6]);
+      } else if (mean < -1 && mean >= (-1.5)) {
+        myservoXY[0].write((int)(mean * 20) + PositionXY[0]);
+      }
+
+      if (mean > 1.5) {
+        myservoXZ[0].write(mean + PositionXZ[0]);
+        myservoXY[6].write((int)(mean * 2) + PositionXY[6]);
+      } else if (mean <= -1.5) {
+        myservoXY[0].write((int)(mean * 3) + PositionXY[0]);
+      }
+    }
+  }
+}
