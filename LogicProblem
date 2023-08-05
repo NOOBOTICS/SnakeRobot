@@ -1,0 +1,89 @@
+#include <ESP32Servo.h>
+#include <math.h>
+
+const int noServos = 7;
+
+Servo myservoXY[noServos];
+Servo myservoXZ[noServos];
+
+int servoPinXY[noServos] = {2, 4, 5, 15, 16, 17, 18};
+int servoPinXZ[noServos] = {19, 21, 22, 23, 13, 12, 14};
+
+int PositionXY[noServos] = {-30, 5, 55, 55, 55, 55, 45};
+int PositionXZ[noServos] = {-40, 40, 55, 30, 5, 20, 10};
+
+float yPositionXY, yPositionXZ;
+float t = 0.0, L = 0.1 , T = 0.5 ;
+const float Pi = 3.14159265359;
+
+void setup() {
+  Serial.begin(115200);
+
+  delay(1000);
+
+  ESP32PWM::allocateTimer(0);
+  ESP32PWM::allocateTimer(1);
+  ESP32PWM::allocateTimer(2);
+  ESP32PWM::allocateTimer(3);
+
+  for (int i = 0; i < noServos; i++) {
+    myservoXY[i].setPeriodHertz(50);
+    myservoXZ[i].setPeriodHertz(50);
+    myservoXY[i].attach(servoPinXY[i], 400, 2600);
+    myservoXZ[i].attach(servoPinXZ[i], 400, 2600);
+  }
+
+  for (int i = 0; i < noServos; i++) {
+    if (i % 2 == 0) {
+      PositionXY[i] = 90 - PositionXY[i];
+      PositionXZ[i] = 90 - PositionXZ[i];
+      myservoXY[i].write(PositionXY[i]);
+      myservoXZ[i].write(PositionXZ[i]);
+      delay(400);
+    } else {
+      PositionXY[i] = 90 + PositionXY[i];
+      PositionXZ[i] = 90 + PositionXZ[i];
+      myservoXY[i].write(PositionXY[i]);
+      myservoXZ[i].write(PositionXZ[i]);
+      delay(400);
+    }
+  }
+
+  delay(5000);
+
+  myservoXZ[1].write(PositionXZ[1] + 20);
+  delay(100);
+  myservoXZ[1].write(PositionXZ[1]);
+  delay(3000);
+
+  myservoXZ[1].write(PositionXZ[1] + 20);
+  delay(100);
+  myservoXZ[1].write(PositionXZ[1] - 20);
+  delay(100);
+  myservoXZ[1].write(PositionXZ[1] + 20);
+  delay(200);
+  myservoXZ[1].write(PositionXZ[1]);
+  delay(7000);
+
+  const String sequence = "../..-.!-.--/---/..-!./-./.---/---/-.--/./-..!./-./.---/---/-.--/./-..!-/..../../...!...-/../-.././---!--./../...-/.!../-!.-!-/..../..-/--/-.../...!..-/.--.";
+
+  for (char symbol : sequence) {
+    if (symbol == '-') {
+      myservoXY[0].write(PositionXY[0] + 20);
+      delay(100);
+      myservoXY[0].write(PositionXY[0]);
+      delay(100);
+    } else if (symbol == '.') {
+      myservoXY[6].write(PositionXY[6] + 20);
+      delay(100);
+      myservoXY[6].write(PositionXY[6]);
+      delay(100);
+    } else {
+      delay(400);
+    }
+  }
+}
+
+void loop() {
+  // Empty loop
+}
