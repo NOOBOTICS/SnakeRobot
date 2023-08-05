@@ -1,0 +1,89 @@
+#include<ESP32Servo.h>
+#include<math.h>
+
+const int noServos = 7; // Number of servos
+
+Servo myservoXZ[noServos]; // Array of servos for XZ plane
+Servo myservoXY[noServos]; // Array of servos for XY plane
+int servoPinXY[noServos] = {2, 4, 5, 15, 16, 17, 18}; // Pins for XY servos
+int servoPinXZ[noServos] = {19, 21, 22, 23, 13, 12, 14}; // Pins for XZ servos
+
+float y, t; // Variables for position and time
+
+// Function to compute square of a number
+float square(float num){
+  return num * num;
+}
+
+void setup() {
+ Serial.begin(115200); // Initialize serial communication
+
+ ESP32PWM :: allocateTimer(0); // Allocate timers for PWM
+ ESP32PWM :: allocateTimer(1);
+ ESP32PWM :: allocateTimer(2);
+ ESP32PWM :: allocateTimer(3);
+
+ for (int i = 0 ; i < noServos; i++){
+   myservoXZ[i].setPeriodHertz(50); // Set servo frequency
+   myservoXY[i].setPeriodHertz(50);
+ }
+
+ for (int i = 0; i < noServos; i ++ ){
+   myservoXZ[i].attach(servoPinXZ[i], 400, 2400); // Attach servo with min-max pulse width
+   myservoXY[i].attach(servoPinXY[i], 400, 2400);
+
+   //Below angles are  to make the snake stay in fixed orientation, if it stays totally elongated the snake rotates when the pulse moves 
+
+   if (i == 0){
+    myservoXY[i].write(45); // Set initial position for specific servo
+    delay(200);
+   }
+   else if (i == 6){
+    myservoXY[i].write(135); // Set initial position for specific servo
+    delay(200);
+   }
+   else {
+     myservoXY[i].write(50); // Set initial position for other servos
+   }
+   delay(400); // Delay for stability
+ }
+}
+
+void loop() {
+  t = 1;
+
+  // Loop to generate motion based on function
+  while (t >= -2.5){
+    for (int x = 0; x < noServos; x++){
+
+      // Mathematical function to determine servo position
+      y = (-24 * (4 * x + 18 * t)) / (square((square(4 * x + 18 * t)) + 8));
+      //You can change pulse width, and other properties by changing parameters here
+      y = y / 1.5; // Normalize the position
+      y = (int)(y * 80 * 70 / 35); // Scale the position
+
+      // Adjust servo position based on its index and direction, and some experimental adjustment
+      if (x % 2 == 0){
+        if (y >= 0){
+          y = 90 - y;
+        }
+        else {
+          y = 90 - 2 * y;
+        }
+      }
+      else {
+        if (y >= 0){
+          y = 90 + y;
+        }
+        else {
+          y = 90 + 2 * y;
+        }
+      }
+
+      // Set servo position
+      myservoXZ[x].write(y);
+    }
+    t += -0.01; // Decrease time
+    delay(10); // Delay for smooth motion
+  }
+}
