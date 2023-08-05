@@ -1,0 +1,59 @@
+#include <ESP32Servo.h>
+#include <math.h>
+
+const int noServos = 7; // Number of servos
+Servo myservoXY[noServos]; // Array of servos for XY plane
+int servoPinXY[noServos] = {2, 4, 5, 15, 16, 17, 18}; // Pins for XY servos
+int A = 1; // Amplitude factor for the waveform
+float yPositionXY; // Positions for servos
+float t = 0.0, L = 0.1, T = 0.5; // Time variables and parameters
+const float Pi = 3.14159265359; // The mathematical constant Pi
+
+void setup() {
+  Serial.begin(115200); // Initialize serial communication
+
+  // Allocate timers for PWM
+  ESP32PWM::allocateTimer(0);
+  ESP32PWM::allocateTimer(1);
+  ESP32PWM::allocateTimer(2);
+  ESP32PWM::allocateTimer(3);
+
+  // Initialize servos for XY plane
+  for (int i = 0; i < noServos; i++) {
+    myservoXY[i].setPeriodHertz(50); // Set servo frequency
+  }
+
+  // Attach and initialize XY servos
+  for (int j = 0; j < noServos; j++) {
+    myservoXY[j].attach(servoPinXY[j], 400, 2600); // Attach servo with min-max pulse width
+    myservoXY[j].write(90); // Set initial position to 90 degrees
+    delay(400); // Delay for stability
+  }
+}
+
+void loop() {
+  for (int x = 0; x < noServos; x++) {
+    // Generate a sinusoidal waveform for motion
+    float y = cos(radians(2 * Pi * (t / T - (x / L))));
+
+    // Calculate servo positions based on waveform
+    yPositionXY = y * 60;
+
+    // Adjust servo positions for alternating direction, as the servos in same plane are connected consequitively 180 degrees rotated
+    if (x % 2 == 0) {
+      yPositionXY = 90 + yPositionXY; // Move in one direction
+    
+    } else {
+      yPositionXY = 90 - yPositionXY; // Move in the opposite direction
+    
+    }
+
+
+
+    // Move servos to calculated positions
+    myservoXY[x].write(yPositionXY);
+  }
+
+  t += 0.5; // Increment time
+  delay(25); // Delay for smooth motion
+}
